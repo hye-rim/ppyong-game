@@ -30,7 +30,9 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
 };
-let best = Number(store.get('ppyongBest')) || 0;
+const BEST_KEY = { normal: 'ppyongBest', easy: 'ppyongEasyBest' };
+let gameMode = store.get('ppyongMode') === 'easy' ? 'easy' : 'normal';
+let best = Number(store.get(BEST_KEY[gameMode])) || 0;
 
 // ---------- 소리 ----------
 let audio = null;
@@ -88,8 +90,9 @@ function burst(x, y, color, n, sp = 150) {
   }
 }
 
-function startGame() {
-  st = L.newGame((Math.random() * 2 ** 31) | 0);
+function startGame(m = gameMode) {
+  gameMode = m; store.set('ppyongMode', m); best = Number(store.get(BEST_KEY[m])) || 0;
+  st = L.newGame((Math.random() * 2 ** 31) | 0, m);
   mode = 'ready'; readyT = 1.5; lastTick = 99; floats = []; particles = []; bombMode = false; fallAnim.fill(0); bombFlash = [];
   $('overlay').classList.add('hidden');
   updateHud();
@@ -134,7 +137,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyP' || e.code === 'Escape') { mode === 'paused' ? resume() : pause(); }
   else if (e.code === 'KeyM') toggleMute();
   else if (e.code === 'KeyB' && mode === 'play') { if (st.bombs > 0) bombMode = !bombMode; }
-  else if ((e.code === 'Enter' || e.code === 'Space') && mode === 'over' && performance.now() - overAt > 600 && !$('overlay').classList.contains('hidden')) { e.preventDefault(); startGame(); }
+  else if ((e.code === 'Enter' || e.code === 'Space') && mode === 'over' && performance.now() - overAt > 600 && !$('overlay').classList.contains('hidden') && $('againBtn')) { e.preventDefault(); startGame(); }
 });
 
 // ---------- 일시정지 ----------
@@ -160,33 +163,41 @@ function showTitle() {
   mode = 'title';
   $('overlay').innerHTML = `
     <h1>뿅뿅<br>블록</h1>
-    <p>같은 색 블록이 <b>3개 이상</b> 붙어 있으면 눌러서 뿅! (60초)<br>많이 모을수록, 연달아 터뜨릴수록 <b>점수 UP</b></p>
-    <p style="font-size:13px">💣 <b>폭탄</b>: 한 줄을 같은 색으로 · ⭐ <b>보너스</b>: 한 색 전부 삭제<br>🔥 <b>슈퍼 피버</b>: 큰 덩어리가 쏟아져요!</p>
-    <div class="col"><button id="startBtn">시작하기</button></div>
-    <p style="font-size:12px;opacity:.85">PC: 마우스 클릭 · B 폭탄 · P 일시정지 · M 소리</p>`;
+    <p>같은 색 블록이 붙어 있으면 눌러서 뿅! (60초)<br>많이 모을수록, 연달아 터뜨릴수록 <b>점수 UP</b></p>
+    <p style="font-size:12.5px;line-height:1.5">💣 <b>폭탄</b> 한 줄을 같은 색으로 · ⭐ <b>보너스</b> 한 색 전부<br>🌭 <b>핫도그</b> 한 줄 삭제 · 🍵 <b>파르페</b> 돌·외톨이 삭제<br>🪨 <b>돌</b>은 옆 덩어리를 터뜨리면 같이 깨져요 · 🔥 <b>피버</b></p>
+    <div class="col"><button id="normalBtn">보통<small>3개 이상 붙으면 터져요</small></button><button id="easyBtn" class="sub">쉬움 · 2개 이상</button></div>
+    <p style="font-size:12px;opacity:.85">PC: 마우스 · B 폭탄 · P 일시정지 · M 소리</p>`;
   $('overlay').classList.remove('hidden');
-  $('startBtn').onclick = (e) => { e.currentTarget.blur(); startGame(); };
+  $('normalBtn').onclick = (e) => { e.currentTarget.blur(); startGame('normal'); };
+  $('easyBtn').onclick = (e) => { e.currentTarget.blur(); startGame('easy'); };
 }
 function showOver() {
-  const med = L.gradeOf(st.score);
+  const med = L.gradeOf(st.score, gameMode);
   const rec = st.score > best;
-  if (rec) { best = st.score; store.set('ppyongBest', String(best)); }
+  if (rec) { best = st.score; store.set(BEST_KEY[gameMode], String(best)); }
   updateHud();
   const m = MEDALS[med];
   $('overlay').innerHTML = `
     <h2>시간 끝!</h2>
+    <span class="tag" style="background:#6b5c95">${gameMode === 'easy' ? '쉬움 모드' : '보통 모드'}</span>
     <div class="big">${st.score.toLocaleString('ko-KR')}</div>
     ${rec && st.score > 0 ? '<span class="tag">최고 기록!</span>' : ''}
-    ${m ? `<p><span class="tag" style="background:${m[1]};color:${INK}">🏅 ${m[0]}</span></p>` : '<p>8,000점을 넘으면 메달을 받아요</p>'}
+    ${m ? `<p><span class="tag" style="background:${m[1]};color:${INK}">🏅 ${m[0]}</span></p>` : `<p>${L.GRADES[gameMode][0].toLocaleString('ko-KR')}점을 넘으면 메달을 받아요</p>`}
     <dl class="stats card2"><dt>터뜨린 블록</dt><dd>${st.removed}개</dd><dt>최고 콤보</dt><dd>${st.maxCombo}</dd><dt>가장 큰 덩어리</dt><dd>${st.bestGroup}개</dd><dt>슈퍼 피버</dt><dd>${st.feverCount}번</dd></dl>
     <p>최고 <b>${best.toLocaleString('ko-KR')}</b></p>
-    <div class="col"><button id="againBtn">다시 하기</button></div>`;
+    <div class="col"><button id="againBtn">다시 하기</button><button id="homeBtn" class="sub">모드 바꾸기</button></div>`;
   $('overlay').classList.remove('hidden');
   $('againBtn').onclick = (e) => { e.currentTarget.blur(); startGame(); };
+  $('homeBtn').onclick = (e) => { e.currentTarget.blur(); showTitle(); };
   if (med) setTimeout(sfx.medal, 250);
 }
 
 // ---------- 이벤트 ----------
+function breakRocks(e) {
+  if (!e.rocks || !e.rocks.length) return;
+  for (const k of e.rocks) { burst(cellX(k) + CELL / 2, cellY(k) + CELL / 2, '#c9c2d6', 7, 170); floatText(cellX(k) + CELL / 2, cellY(k), `+${20}`, '#e8e2f5', 18); }
+  tone(160, 0.15, 'square', 0.07, -60);
+}
 function handleEvents() {
   for (const e of st.events) {
     if (e.type === 'pop') {
@@ -196,12 +207,22 @@ function handleEvents() {
       floatText(x, y - 10, `+${e.gain}`, e.n >= 8 ? '#ffd23f' : '#fff', e.n >= 8 ? 28 : 22);
       if (e.n >= 10) { shake = Math.max(shake, 0.25); floatText(W / 2, 250, `${e.n}개 뿅!`, '#ff5fa2', 34); }
       for (const k of e.cells) if (k !== e.i && Math.random() < 0.5) burst(cellX(k) + CELL / 2, cellY(k) + CELL / 2, PALETTE[e.color][1], 2, 90);
-      updateHud();
+      breakRocks(e); updateHud();
     } else if (e.type === 'bonus') {
       sfx.bonus(); shake = 0.5; flash = 0.5; flashColor = '255,236,150';
       floatText(W / 2, 250, `⭐ ${e.n}개 싹쓸이! +${e.gain}`, '#ffd23f', 28);
       for (const k of e.cells) burst(cellX(k) + CELL / 2, cellY(k) + CELL / 2, PALETTE[e.color][0], 3, 180);
       updateHud();
+    } else if (e.type === 'hotdog') {
+      sfx.bonus(); shake = Math.max(shake, 0.35); flash = 0.3; flashColor = '255,170,80';
+      floatText(W / 2, 250, `🌭 한 줄 삭제! +${e.gain}`, '#ffb347', 26);
+      for (const k of e.cells) burst(cellX(k) + CELL / 2, cellY(k) + CELL / 2, '#ffb347', 3, 170);
+      breakRocks(e); updateHud();
+    } else if (e.type === 'parfait') {
+      sfx.bonus(); shake = Math.max(shake, 0.35); flash = 0.3; flashColor = '170,255,190';
+      floatText(W / 2, 250, `🍵 깔끔! +${e.gain}`, '#9cf5b4', 28);
+      for (const k of e.cells) burst(cellX(k) + CELL / 2, cellY(k) + CELL / 2, '#9cf5b4', 3, 170);
+      breakRocks(e); updateHud();
     } else if (e.type === 'fever') {
       sfx.fever(); shake = 0.5; flash = 0.5; flashColor = '255,140,60'; floatText(W / 2, 250, '🔥 슈퍼 피버!', '#ff7a2f', 40);
       fallAnim.fill(0);
@@ -229,7 +250,19 @@ function drawBlock(x, y, v, s = 1, dim = false) {
   const m = 3, w = CELL - m * 2;
   ctx.save(); ctx.translate(x + CELL / 2, y + CELL / 2); ctx.scale(s, s); ctx.translate(-CELL / 2, -CELL / 2);
   ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = INK;
-  if (v === L.BONUS) {
+  if (v === L.ROCK) {
+    ctx.fillStyle = '#6f6a85'; rr(m, m + 3, w, w, 12); ctx.fill();
+    ctx.fillStyle = '#a49fbb'; rr(m, m, w, w, 12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; rr(m + 5, m + 4, w - 18, 7, 4); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(16, 10); ctx.lineTo(21, 20); ctx.lineTo(15, 27); ctx.lineTo(22, 37); ctx.moveTo(30, 12); ctx.lineTo(27, 21); ctx.stroke();
+    ctx.fillStyle = INK; ctx.font = '11px Jua, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('돌', CELL - 13, CELL - 8);
+  } else if (v === L.HOTDOG || v === L.PARFAIT) {
+    const hot = v === L.HOTDOG, pulse = 1 + 0.05 * Math.sin(uiT * 8);
+    ctx.fillStyle = hot ? '#c25b12' : '#2f8f5b'; rr(m, m + 3, w, w, 12); ctx.fill();
+    ctx.fillStyle = hot ? '#ffb347' : '#9cf5b4'; rr(m, m, w, w, 12); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.translate(CELL / 2, CELL / 2 + 1); ctx.scale(pulse, pulse);
+    ctx.fillStyle = INK; ctx.font = '25px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hot ? '🌭' : '🍵', 0, 0); ctx.restore(); ctx.textBaseline = 'alphabetic';
+  } else if (v === L.BONUS) {
     const gr = ctx.createLinearGradient(0, 0, CELL, CELL);
     const hue = (uiT * 120) % 360; gr.addColorStop(0, `hsl(${hue},95%,65%)`); gr.addColorStop(0.5, `hsl(${hue + 90},95%,65%)`); gr.addColorStop(1, `hsl(${hue + 200},95%,65%)`);
     ctx.fillStyle = gr; rr(m, m, w, w, 12); ctx.fill(); ctx.stroke();
