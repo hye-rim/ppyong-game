@@ -153,3 +153,11 @@ test('a full game keeps the board sound, and good play reaches fever and a medal
     }
   }
 });
+
+test('a bomb that changes nothing is not used up', () => {
+  const st = L.newGame(() => 0.5);
+  for (let i = 0; i < N; i++) st.grid[i] = 0;               // 판 전체가 한 색이라 바꿀 블록이 없다
+  st.bombs = 2;
+  assert.strictEqual(L.bomb(st, 0), null);
+  assert.strictEqual(st.bombs, 2);
+});

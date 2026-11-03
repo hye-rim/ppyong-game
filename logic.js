@@ -239,10 +239,11 @@ function bomb(st, i) {
   if (st.over || st.bombs <= 0 || i < 0 || i >= N) return null;
   const col = st.grid[i];
   if (!isColor(col)) return null;
-  st.bombs--;
   const c0 = i % COLS, r0 = (i / COLS) | 0, changed = [];
   for (let c = 0; c < COLS; c++) { const k = idx(c, r0); if (isColor(st.grid[k]) && st.grid[k] !== col) { st.grid[k] = col; changed.push(k); } }
   for (let r = 0; r < ROWS; r++) { const k = idx(c0, r); if (isColor(st.grid[k]) && st.grid[k] !== col) { st.grid[k] = col; changed.push(k); } }
+  if (!changed.length) return null;                       // 바꿀 블록이 없으면 폭탄을 쓰지 않는다
+  st.bombs--;
   st.events.push({ type: 'bomb', i, cells: changed });
   return { cells: changed, color: col };
 }
